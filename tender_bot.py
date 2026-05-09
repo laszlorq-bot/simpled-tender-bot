@@ -1,6 +1,7 @@
 import json
 import re
 import os
+import time
 import anthropic
 from datetime import datetime, timedelta
 
@@ -19,7 +20,7 @@ Finding tenders for Simpled Services Ltd — London-based property maintenance a
 GOOD FIT: kitchen/bathroom refurbishments, property maintenance, playground equipment, open space works, internal alterations, decoration, flooring, void works, estate maintenance, housing association or council works.
 NOT a fit: professional consultancy (architects, engineers, surveyors), civil infrastructure, IT/digital.
 
-After all searches, return ONLY a valid JSON array, no markdown:
+After all searches are done, return ONLY a valid JSON array with no explanation, no markdown, no text before or after it:
 [
   {{
     "title": "tender title",
@@ -36,21 +37,35 @@ After all searches, return ONLY a valid JSON array, no markdown:
 ]"""
 
 def extract_json(text):
+    """Try multiple strategies to extract a JSON array from text."""
+    # Strategy 1: direct parse
     try:
-        return json.loads(text.strip())
+        result = json.loads(text.strip())
+        if isinstance(result, list):
+            return result
     except Exception:
         pass
-    text = re.sub(r"```json|```", "", text).strip()
+
+    # Strategy 2: strip markdown fences
+    cleaned = re.sub(r"```json|```", "", text).strip()
     try:
-        return json.loads(text)
+        result = json.loads(cleaned)
+        if isinstance(result, list):
+            return result
     except Exception:
         pass
-    match = re.search(r"\[.*\]", text, re.DOTALL)
-    if match:
+
+    # Strategy 3: find outermost [ ... ]
+    start = text.find("[")
+    end = text.rfind("]")
+    if start != -1 and end != -1 and end > start:
         try:
-            return json.loads(match.group(0))
+            result = json.loads(text[start:end+1])
+            if isinstance(result, list):
+                return result
         except Exception:
             pass
+
     return []
 
 def search_tenders(claude_client, days_back=1):
@@ -65,16 +80,43 @@ def search_tenders(claude_client, days_back=1):
             tools=tools,
             messages=messages,
         )
+
         block_types = [b.type for b in response.content]
         print(f"  Turn {i+1}: stop_reason={response.stop_reason} blocks={block_types}")
+
         messages.append({"role": "assistant", "content": response.content})
+        time.sleep(8)
 
         if response.stop_reason == "end_turn":
-            text = "".join(b.text for b in response.content if hasattr(b, "text") and b.type == "text")
-            print(f"  Final text: {len(text)} chars")
-            results = extract_json(text)
-            print(f"  Parsed {len(results)} results")
-            return results
+            # Collect all text blocks
+            text_blocks = [
+                b.text for b in response.content
+                if hasattr(b, "text") and b.type == "text"
+            ]
+            print(f"  Text blocks: {len(text_blocks)}, total chars: {sum(len(t) for t in text_blocks)}")
+
+            # Try each block individually first
+            for block in text_blocks:
+                result = extract_json(block)
+                if result:
+                    print(f"  Parsed {len(result)} results from single block")
+                    return result
+
+            # Fall back: join all blocks and try again
+            combined = "".join(text_blocks)
+            print(f"  Sample: {combined[:400]}")
+            result = extract_json(combined)
+            if result:
+                print(f"  Parsed {len(result)} results from combined text")
+                return result
+
+            # Last resort: ask Claude to return just the JSON
+            print("  JSON parse failed — asking Claude to reformat...")
+            messages.append({
+                "role": "user",
+                "content": "Return ONLY the JSON array from your findings above. No explanation, no markdown, just the raw [ ... ] array."
+            })
+            continue
 
         elif response.stop_reason == "tool_use":
             tool_results = []
@@ -93,6 +135,7 @@ def search_tenders(claude_client, days_back=1):
         else:
             break
 
+    print("  Could not parse results.")
     return []
 
 def priority_for(match):
@@ -100,7 +143,8 @@ def priority_for(match):
         return match["priority"]
     loc = (match.get("location") or "").lower()
     return "high" if any(x in loc for x in [
-        "london","south east","essex","kent","surrey","hertfordshire","middlesex","berkshire"
+        "london", "south east", "essex", "kent", "surrey",
+        "hertfordshire", "middlesex", "berkshire"
     ]) else "medium"
 
 def build_html(matches, all_results):
@@ -117,13 +161,14 @@ def build_html(matches, all_results):
     }
 
     def card(m):
-        p = m.get("priority","medium")
+        p = m.get("priority", "medium")
         c = priority_colors.get(p, priority_colors["medium"])
         tl = "Prior Notice" if m.get("tenderType") == "prior_notice" else "Live Tender"
-        desc = m.get("description","")
-        val = m.get("estimatedValue","") or "Not stated"
-        dl = m.get("deadline","") or "Check portal"
-        loc = m.get("location","") or "Not specified"
+        desc = m.get("description", "")
+        val = m.get("estimatedValue") or "Not stated"
+        dl = m.get("deadline") or "Check portal"
+        loc = m.get("location") or "Not specified"
+        link = m.get("link", "#")
         return f"""
         <div class="card" style="border-left:4px solid {c['border']};">
           <div class="card-meta">
@@ -139,11 +184,11 @@ def build_html(matches, all_results):
             <tr><td>Why</td><td style="color:{c['color']};font-style:italic;">{m.get('matchReason','')}</td></tr>
           </table>
           {f'<p class="desc">{desc}</p>' if desc else ''}
-          <a href="{m.get('link','#')}" class="btn" target="_blank" rel="noopener">View tender →</a>
+          <a href="{link}" class="btn" target="_blank" rel="noopener">View tender →</a>
         </div>"""
 
     cards_html = ""
-    for p_key in ["high","medium","low"]:
+    for p_key in ["high", "medium", "low"]:
         group = [m for m in matches if m.get("priority") == p_key]
         if group:
             c = priority_colors[p_key]
@@ -178,11 +223,11 @@ def build_html(matches, all_results):
   .header h1 {{ font-size: 20px; color: #185FA5; font-weight: 600; }}
   .header p {{ font-size: 13px; color: #999; margin-top: 2px; }}
   .stats {{ display: flex; gap: 12px; padding: 16px 24px; background: #fff; border-bottom: 1px solid #eee; flex-wrap: wrap; }}
-  .stat {{ background: #f5f5f5; border-radius: 8px; padding: 10px 16px; min-width: 100px; }}
+  .stat {{ background: #f5f5f5; border-radius: 8px; padding: 10px 16px; min-width: 90px; }}
   .stat-label {{ font-size: 11px; color: #999; text-transform: uppercase; letter-spacing: 0.04em; }}
   .stat-value {{ font-size: 22px; font-weight: 600; color: #1a1a1a; }}
   .content {{ max-width: 760px; margin: 0 auto; padding: 24px 16px; }}
-  .section-title {{ font-size: 14px; font-weight: 600; margin: 24px 0 10px; text-transform: uppercase; letter-spacing: 0.04em; }}
+  .section-title {{ font-size: 13px; font-weight: 700; margin: 24px 0 10px; text-transform: uppercase; letter-spacing: 0.05em; }}
   .card {{ background: #fff; border: 1px solid #e5e5e5; border-radius: 10px; padding: 18px; margin-bottom: 12px; }}
   .card h3 {{ font-size: 15px; font-weight: 600; margin: 10px 0 12px; line-height: 1.4; }}
   .card-meta {{ display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }}
@@ -194,7 +239,7 @@ def build_html(matches, all_results):
   .desc {{ font-size: 13px; color: #666; margin-bottom: 14px; line-height: 1.5; }}
   .btn {{ display: inline-block; background: #185FA5; color: #fff; padding: 8px 18px; border-radius: 6px; font-size: 13px; font-weight: 600; text-decoration: none; }}
   .btn:hover {{ background: #0C447C; }}
-  .no-match {{ color: #999; font-size: 14px; margin: 32px 0; text-align: center; }}
+  .no-match {{ color: #999; font-size: 14px; margin: 40px 0; text-align: center; }}
   .skip-section {{ margin-top: 24px; border: 1px solid #eee; border-radius: 8px; overflow: hidden; }}
   .skip-section summary {{ padding: 12px 16px; font-size: 13px; color: #aaa; cursor: pointer; background: #fafafa; }}
   .skip-table {{ width: 100%; border-collapse: collapse; font-size: 12px; }}
@@ -207,13 +252,13 @@ def build_html(matches, all_results):
 <body>
 <div class="header">
   <h1>Simpled Tender Bot</h1>
-  <p>{count} match{'es' if count!=1 else ''} from {len(all_results)} scanned · {date_str} at {time_str}</p>
+  <p>{count} match{'es' if count != 1 else ''} from {len(all_results)} scanned · {date_str} at {time_str}</p>
 </div>
 <div class="stats">
   <div class="stat"><div class="stat-label">Scanned</div><div class="stat-value">{len(all_results)}</div></div>
   <div class="stat"><div class="stat-label">Matches</div><div class="stat-value">{count}</div></div>
-  <div class="stat"><div class="stat-label">High</div><div class="stat-value" style="color:#3B6D11">{len([m for m in matches if m.get('priority')=='high'])}</div></div>
-  <div class="stat"><div class="stat-label">Medium</div><div class="stat-value" style="color:#854F0B">{len([m for m in matches if m.get('priority')=='medium'])}</div></div>
+  <div class="stat"><div class="stat-label">High</div><div class="stat-value" style="color:#3B6D11">{len([m for m in matches if m.get('priority') == 'high'])}</div></div>
+  <div class="stat"><div class="stat-label">Medium</div><div class="stat-value" style="color:#854F0B">{len([m for m in matches if m.get('priority') == 'medium'])}</div></div>
 </div>
 <div class="content">
   {no_match_msg}
@@ -225,8 +270,8 @@ def build_html(matches, all_results):
 </html>"""
 
 def main():
-    anthropic_key   = os.environ.get("ANTHROPIC_API_KEY")
-    days_back = int(os.environ.get("DAYS_BACK","1"))
+    anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
+    days_back = int(os.environ.get("DAYS_BACK", "1"))
 
     if not anthropic_key:
         raise ValueError("ANTHROPIC_API_KEY not set")
@@ -238,14 +283,13 @@ def main():
     print(f"{'='*50}\n")
 
     results = search_tenders(claude_client, days_back)
-
     if not results:
         results = []
 
     matches = [r for r in results if r.get("isMatch")]
     for m in matches:
         m["priority"] = priority_for(m)
-    matches.sort(key=lambda m: {"high":0,"medium":1,"low":2}.get(m.get("priority","low"),1))
+    matches.sort(key=lambda m: {"high": 0, "medium": 1, "low": 2}.get(m.get("priority", "low"), 1))
 
     print(f"\n{'─'*50}")
     print(f"{len(matches)} matches from {len(results)} tenders scanned")
@@ -253,6 +297,7 @@ def main():
         print(f"  [{m.get('priority','?').upper()}] {m.get('title','')[:55]}")
     print(f"{'─'*50}\n")
 
+    os.makedirs("docs", exist_ok=True)
     html = build_html(matches, results)
     with open("docs/index.html", "w", encoding="utf-8") as f:
         f.write(html)
