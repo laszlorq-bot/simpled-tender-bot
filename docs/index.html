@@ -11,11 +11,11 @@
   .header h1 { font-size: 20px; color: #185FA5; font-weight: 600; }
   .header p { font-size: 13px; color: #999; margin-top: 2px; }
   .stats { display: flex; gap: 12px; padding: 16px 24px; background: #fff; border-bottom: 1px solid #eee; flex-wrap: wrap; }
-  .stat { background: #f5f5f5; border-radius: 8px; padding: 10px 16px; min-width: 100px; }
+  .stat { background: #f5f5f5; border-radius: 8px; padding: 10px 16px; min-width: 90px; }
   .stat-label { font-size: 11px; color: #999; text-transform: uppercase; letter-spacing: 0.04em; }
   .stat-value { font-size: 22px; font-weight: 600; color: #1a1a1a; }
   .content { max-width: 760px; margin: 0 auto; padding: 24px 16px; }
-  .section-title { font-size: 14px; font-weight: 600; margin: 24px 0 10px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .section-title { font-size: 13px; font-weight: 700; margin: 24px 0 10px; text-transform: uppercase; letter-spacing: 0.05em; }
   .card { background: #fff; border: 1px solid #e5e5e5; border-radius: 10px; padding: 18px; margin-bottom: 12px; }
   .card h3 { font-size: 15px; font-weight: 600; margin: 10px 0 12px; line-height: 1.4; }
   .card-meta { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
@@ -27,7 +27,7 @@
   .desc { font-size: 13px; color: #666; margin-bottom: 14px; line-height: 1.5; }
   .btn { display: inline-block; background: #185FA5; color: #fff; padding: 8px 18px; border-radius: 6px; font-size: 13px; font-weight: 600; text-decoration: none; }
   .btn:hover { background: #0C447C; }
-  .no-match { color: #999; font-size: 14px; margin: 32px 0; text-align: center; }
+  .no-match { color: #999; font-size: 14px; margin: 40px 0; text-align: center; }
   .skip-section { margin-top: 24px; border: 1px solid #eee; border-radius: 8px; overflow: hidden; }
   .skip-section summary { padding: 12px 16px; font-size: 13px; color: #aaa; cursor: pointer; background: #fafafa; }
   .skip-table { width: 100%; border-collapse: collapse; font-size: 12px; }
@@ -40,18 +40,281 @@
 <body>
 <div class="header">
   <h1>Simpled Tender Bot</h1>
-  <p>0 matches from 0 scanned · 09 May 2026 at 16:03 UTC</p>
+  <p>16 matches from 20 scanned · 09 May 2026 at 16:10 UTC</p>
 </div>
 <div class="stats">
-  <div class="stat"><div class="stat-label">Scanned</div><div class="stat-value">0</div></div>
-  <div class="stat"><div class="stat-label">Matches</div><div class="stat-value">0</div></div>
-  <div class="stat"><div class="stat-label">High</div><div class="stat-value" style="color:#3B6D11">0</div></div>
-  <div class="stat"><div class="stat-label">Medium</div><div class="stat-value" style="color:#854F0B">0</div></div>
+  <div class="stat"><div class="stat-label">Scanned</div><div class="stat-value">20</div></div>
+  <div class="stat"><div class="stat-label">Matches</div><div class="stat-value">16</div></div>
+  <div class="stat"><div class="stat-label">High</div><div class="stat-value" style="color:#3B6D11">3</div></div>
+  <div class="stat"><div class="stat-label">Medium</div><div class="stat-value" style="color:#854F0B">13</div></div>
 </div>
 <div class="content">
-  <p class="no-match">No matches found today. Check back tomorrow.</p>
   
+  <h2 class="section-title" style="color:#3B6D11">High priority (3)</h2>
+        <div class="card" style="border-left:4px solid #1D9E75;">
+          <div class="card-meta">
+            <span class="badge" style="background:#EAF3DE;color:#3B6D11;">High priority</span>
+            <span class="badge badge-type">Live Tender</span>
+          </div>
+          <h3>Kitchen & Bathroom Replacement Programme - Phase 33</h3>
+          <table class="details">
+            <tr><td>Buyer</td><td><strong>London Borough of Hillingdon</strong></td></tr>
+            <tr><td>Location</td><td>Hillingdon, London</td></tr>
+            <tr><td>Value</td><td>Not stated</td></tr>
+            <tr><td>Deadline</td><td>Check portal</td></tr>
+            <tr><td>Why</td><td style="color:#3B6D11;font-style:italic;">Direct kitchen/bathroom refurbishment for London council housing stock</td></tr>
+          </table>
+          <p class="desc">Replace 40 kitchens, 39 bathrooms and 8 WCs in occupied council dwellings</p>
+          <a href="https://www.contractsfinder.service.gov.uk/notice/61138503-e1b7-4898-870f-bcb473b71e7c" class="btn" target="_blank" rel="noopener">View tender →</a>
+        </div>
+        <div class="card" style="border-left:4px solid #1D9E75;">
+          <div class="card-meta">
+            <span class="badge" style="background:#EAF3DE;color:#3B6D11;">High priority</span>
+            <span class="badge badge-type">Live Tender</span>
+          </div>
+          <h3>Responsive Repairs and Void Refurbishment Works for Southern Housing Group</h3>
+          <table class="details">
+            <tr><td>Buyer</td><td><strong>Southern Housing Group</strong></td></tr>
+            <tr><td>Location</td><td>London and South</td></tr>
+            <tr><td>Value</td><td>£69,000,000 (full term inc. extensions)</td></tr>
+            <tr><td>Deadline</td><td>Check portal</td></tr>
+            <tr><td>Why</td><td style="color:#3B6D11;font-style:italic;">London housing association void and responsive repairs — strong geographic fit</td></tr>
+          </table>
+          <p class="desc">Responsive repairs and void refurbishment across London and South, three lot areas</p>
+          <a href="https://www.contractsfinder.service.gov.uk/notice/00491101-df22-4020-837d-92bac61aa822" class="btn" target="_blank" rel="noopener">View tender →</a>
+        </div>
+        <div class="card" style="border-left:4px solid #1D9E75;">
+          <div class="card-meta">
+            <span class="badge" style="background:#EAF3DE;color:#3B6D11;">High priority</span>
+            <span class="badge badge-type">Live Tender</span>
+          </div>
+          <h3>Ad Hoc Complex Void Works and Complex Repairs to Council Housing Stock</h3>
+          <table class="details">
+            <tr><td>Buyer</td><td><strong>London Borough of Hammersmith & Fulham</strong></td></tr>
+            <tr><td>Location</td><td>W6, London</td></tr>
+            <tr><td>Value</td><td>£641,895</td></tr>
+            <tr><td>Deadline</td><td>Check portal</td></tr>
+            <tr><td>Why</td><td style="color:#3B6D11;font-style:italic;">London council void works — ideal geographic and service match for Simpled</td></tr>
+          </table>
+          <p class="desc">Complex void and repair works to council housing stock in West London</p>
+          <a href="https://www.contractsfinder.service.gov.uk/notice/f804f9dd-ce87-43f1-9c89-b2951096a489" class="btn" target="_blank" rel="noopener">View tender →</a>
+        </div><h2 class="section-title" style="color:#854F0B">Medium priority (13)</h2>
+        <div class="card" style="border-left:4px solid #EF9F27;">
+          <div class="card-meta">
+            <span class="badge" style="background:#FAEEDA;color:#854F0B;">Medium priority</span>
+            <span class="badge badge-type">Live Tender</span>
+          </div>
+          <h3>Property Maintenance Services Framework</h3>
+          <table class="details">
+            <tr><td>Buyer</td><td><strong>EMH Group</strong></td></tr>
+            <tr><td>Location</td><td>East Midlands</td></tr>
+            <tr><td>Value</td><td>Not stated</td></tr>
+            <tr><td>Deadline</td><td>Check portal</td></tr>
+            <tr><td>Why</td><td style="color:#854F0B;font-style:italic;">Framework covers decorating, flooring, roofing — core Simpled services</td></tr>
+          </table>
+          <p class="desc">Multi-lot framework for trades including flooring, decorating, roofing, damp and mould</p>
+          <a href="https://www.contractsfinder.service.gov.uk/notice/d96a7445-67e2-43c9-b719-1ffdc4de1433" class="btn" target="_blank" rel="noopener">View tender →</a>
+        </div>
+        <div class="card" style="border-left:4px solid #EF9F27;">
+          <div class="card-meta">
+            <span class="badge" style="background:#FAEEDA;color:#854F0B;">Medium priority</span>
+            <span class="badge badge-type">Prior Notice</span>
+          </div>
+          <h3>Building Maintenance and Refurbishment Framework</h3>
+          <table class="details">
+            <tr><td>Buyer</td><td><strong>ProcurePublic (via myTenders)</strong></td></tr>
+            <tr><td>Location</td><td>England and Wales</td></tr>
+            <tr><td>Value</td><td>Up to £90,000,000</td></tr>
+            <tr><td>Deadline</td><td>Check portal</td></tr>
+            <tr><td>Why</td><td style="color:#854F0B;font-style:italic;">Lot 4 kitchens/bathrooms, Lot 2 decoration — strong match for Simpled</td></tr>
+          </table>
+          <p class="desc">7-lot public sector framework: kitchens, bathrooms, decoration, roofing, windows, fire safety</p>
+          <a href="https://www.contractsfinder.service.gov.uk/Notice/7a916c15-19bb-43d9-a8b3-5f1c79eb6abe" class="btn" target="_blank" rel="noopener">View tender →</a>
+        </div>
+        <div class="card" style="border-left:4px solid #EF9F27;">
+          <div class="card-meta">
+            <span class="badge" style="background:#FAEEDA;color:#854F0B;">Medium priority</span>
+            <span class="badge badge-type">Prior Notice</span>
+          </div>
+          <h3>Building Maintenance and Refurbishment Framework (Find a Tender)</h3>
+          <table class="details">
+            <tr><td>Buyer</td><td><strong>ProcurePublic</strong></td></tr>
+            <tr><td>Location</td><td>England and Wales</td></tr>
+            <tr><td>Value</td><td>£90,000,000</td></tr>
+            <tr><td>Deadline</td><td>Check portal</td></tr>
+            <tr><td>Why</td><td style="color:#854F0B;font-style:italic;">Includes kitchens, bathrooms, decoration, flooring — all Simpled core trades</td></tr>
+          </table>
+          <p class="desc">Public sector framework covering refurbishment, kitchens, bathrooms, decoration and repairs</p>
+          <a href="https://www.find-tender.service.gov.uk/Notice/000522-2025" class="btn" target="_blank" rel="noopener">View tender →</a>
+        </div>
+        <div class="card" style="border-left:4px solid #EF9F27;">
+          <div class="card-meta">
+            <span class="badge" style="background:#FAEEDA;color:#854F0B;">Medium priority</span>
+            <span class="badge badge-type">Live Tender</span>
+          </div>
+          <h3>Priors Marston Parish Council Playground Equipment Replacement</h3>
+          <table class="details">
+            <tr><td>Buyer</td><td><strong>Priors Marston Parish Council</strong></td></tr>
+            <tr><td>Location</td><td>Priors Marston, Warwickshire</td></tr>
+            <tr><td>Value</td><td>Not stated</td></tr>
+            <tr><td>Deadline</td><td>Check portal</td></tr>
+            <tr><td>Why</td><td style="color:#854F0B;font-style:italic;">Playground equipment supply and install — good fit for Simpled open space works</td></tr>
+          </table>
+          <p class="desc">Replace playground equipment with new kit and surfacing for toddlers to early-teens</p>
+          <a href="https://www.contractsfinder.service.gov.uk/Search/Results" class="btn" target="_blank" rel="noopener">View tender →</a>
+        </div>
+        <div class="card" style="border-left:4px solid #EF9F27;">
+          <div class="card-meta">
+            <span class="badge" style="background:#FAEEDA;color:#854F0B;">Medium priority</span>
+            <span class="badge badge-type">Live Tender</span>
+          </div>
+          <h3>East Hanney Parish Council Sports Pavilion Fit-Out</h3>
+          <table class="details">
+            <tr><td>Buyer</td><td><strong>East Hanney Parish Council</strong></td></tr>
+            <tr><td>Location</td><td>East Hanney, Oxfordshire</td></tr>
+            <tr><td>Value</td><td>Not stated</td></tr>
+            <tr><td>Deadline</td><td>Check portal</td></tr>
+            <tr><td>Why</td><td style="color:#854F0B;font-style:italic;">Building fit-out works for council — matches internal alterations capability</td></tr>
+          </table>
+          <p class="desc">Build and fit out new sports pavilion for community use on existing sports field</p>
+          <a href="https://www.contractsfinder.service.gov.uk/Search/Results" class="btn" target="_blank" rel="noopener">View tender →</a>
+        </div>
+        <div class="card" style="border-left:4px solid #EF9F27;">
+          <div class="card-meta">
+            <span class="badge" style="background:#FAEEDA;color:#854F0B;">Medium priority</span>
+            <span class="badge badge-type">Live Tender</span>
+          </div>
+          <h3>CBC-1773-T-TS Installation of Kitchens and Bathrooms to Housing Properties 2025.6</h3>
+          <table class="details">
+            <tr><td>Buyer</td><td><strong>Central Bedfordshire Council</strong></td></tr>
+            <tr><td>Location</td><td>Central Bedfordshire</td></tr>
+            <tr><td>Value</td><td>Not stated</td></tr>
+            <tr><td>Deadline</td><td>Check portal</td></tr>
+            <tr><td>Why</td><td style="color:#854F0B;font-style:italic;">Council kitchen and bathroom installs — core Simpled work type</td></tr>
+          </table>
+          <p class="desc">Install kitchens and bathrooms to council housing properties, contract commencing June 2025</p>
+          <a href="https://www.contractsfinder.service.gov.uk/notice/766835fc-cd7c-4ebd-a9fd-a4a867e75b61" class="btn" target="_blank" rel="noopener">View tender →</a>
+        </div>
+        <div class="card" style="border-left:4px solid #EF9F27;">
+          <div class="card-meta">
+            <span class="badge" style="background:#FAEEDA;color:#854F0B;">Medium priority</span>
+            <span class="badge badge-type">Live Tender</span>
+          </div>
+          <h3>Refurbishment and Repairs to Vacant Properties (Voids) for Swindon Borough Council</h3>
+          <table class="details">
+            <tr><td>Buyer</td><td><strong>Swindon Borough Council</strong></td></tr>
+            <tr><td>Location</td><td>Swindon</td></tr>
+            <tr><td>Value</td><td>£17,787,419 (combined lots over 4 years)</td></tr>
+            <tr><td>Deadline</td><td>Check portal</td></tr>
+            <tr><td>Why</td><td style="color:#854F0B;font-style:italic;">Void refurbishment matches Simpled's void works and property maintenance specialism</td></tr>
+          </table>
+          <p class="desc">Void refurbishment and repairs across 390–480 council properties per year, two lots</p>
+          <a href="https://www.contractsfinder.service.gov.uk/Notice/af291f13-6d03-4d7d-889d-675f95593d86" class="btn" target="_blank" rel="noopener">View tender →</a>
+        </div>
+        <div class="card" style="border-left:4px solid #EF9F27;">
+          <div class="card-meta">
+            <span class="badge" style="background:#FAEEDA;color:#854F0B;">Medium priority</span>
+            <span class="badge badge-type">Live Tender</span>
+          </div>
+          <h3>Internal Refurbishment Works 2025–2035</h3>
+          <table class="details">
+            <tr><td>Buyer</td><td><strong>Gentoo Group</strong></td></tr>
+            <tr><td>Location</td><td>Sunderland (North East England)</td></tr>
+            <tr><td>Value</td><td>Not stated</td></tr>
+            <tr><td>Deadline</td><td>Check portal</td></tr>
+            <tr><td>Why</td><td style="color:#854F0B;font-style:italic;">Kitchen/bathroom replacements for housing association — direct service match</td></tr>
+          </table>
+          <p class="desc">10-year programme: kitchen, bathroom replacements, electrical rewires, environmental improvements</p>
+          <a href="https://www.contractsfinder.service.gov.uk/Notice/773fb32b-372e-4ea5-b0e2-4f441b93b221" class="btn" target="_blank" rel="noopener">View tender →</a>
+        </div>
+        <div class="card" style="border-left:4px solid #EF9F27;">
+          <div class="card-meta">
+            <span class="badge" style="background:#FAEEDA;color:#854F0B;">Medium priority</span>
+            <span class="badge badge-type">Live Tender</span>
+          </div>
+          <h3>Westworks Building Maintenance and Compliance DPS</h3>
+          <table class="details">
+            <tr><td>Buyer</td><td><strong>Westworks (Collaboration Consortia)</strong></td></tr>
+            <tr><td>Location</td><td>England and Wales</td></tr>
+            <tr><td>Value</td><td>Not stated</td></tr>
+            <tr><td>Deadline</td><td>Check portal</td></tr>
+            <tr><td>Why</td><td style="color:#854F0B;font-style:italic;">Includes kitchen/bathroom, decorating, general building — matches Simpled trades</td></tr>
+          </table>
+          <p class="desc">DPS for maintenance, refurbishment, major works across residential and public sector properties</p>
+          <a href="https://www.contractsfinder.service.gov.uk/notice/0a926d8c-9776-4beb-a748-e7e9d3394eea" class="btn" target="_blank" rel="noopener">View tender →</a>
+        </div>
+        <div class="card" style="border-left:4px solid #EF9F27;">
+          <div class="card-meta">
+            <span class="badge" style="background:#FAEEDA;color:#854F0B;">Medium priority</span>
+            <span class="badge badge-type">Prior Notice</span>
+          </div>
+          <h3>115_25 Outdoor Playground, Fitness and Sports Facilities and Equipment Framework</h3>
+          <table class="details">
+            <tr><td>Buyer</td><td><strong>ESPO (Eastern Shires Purchasing Organisation)</strong></td></tr>
+            <tr><td>Location</td><td>United Kingdom</td></tr>
+            <tr><td>Value</td><td>Not stated</td></tr>
+            <tr><td>Deadline</td><td>Check portal</td></tr>
+            <tr><td>Why</td><td style="color:#854F0B;font-style:italic;">Playground equipment installation framework — fits Simpled open space works</td></tr>
+          </table>
+          <p class="desc">National framework: design, supply, install, maintain playground and outdoor fitness equipment</p>
+          <a href="https://www.contractsfinder.service.gov.uk/Notice/d5f29c37-c8a6-46bc-a5e0-a73a97b9e8c7" class="btn" target="_blank" rel="noopener">View tender →</a>
+        </div>
+        <div class="card" style="border-left:4px solid #EF9F27;">
+          <div class="card-meta">
+            <span class="badge" style="background:#FAEEDA;color:#854F0B;">Medium priority</span>
+            <span class="badge badge-type">Live Tender</span>
+          </div>
+          <h3>School Building Refurbishment — Windows, Roof Repairs and Internal/External Decoration</h3>
+          <table class="details">
+            <tr><td>Buyer</td><td><strong>Undisclosed School / Local Authority</strong></td></tr>
+            <tr><td>Location</td><td>United Kingdom</td></tr>
+            <tr><td>Value</td><td>Not stated</td></tr>
+            <tr><td>Deadline</td><td>Check portal</td></tr>
+            <tr><td>Why</td><td style="color:#854F0B;font-style:italic;">Refurbishment, decoration and internal works — fits Simpled core services</td></tr>
+          </table>
+          <p class="desc">Remove/replace windows, roof repairs, internal and external refurbishment including decoration</p>
+          <a href="https://www.contractsfinder.service.gov.uk/Search/Results?page=2" class="btn" target="_blank" rel="noopener">View tender →</a>
+        </div>
+        <div class="card" style="border-left:4px solid #EF9F27;">
+          <div class="card-meta">
+            <span class="badge" style="background:#FAEEDA;color:#854F0B;">Medium priority</span>
+            <span class="badge badge-type">Live Tender</span>
+          </div>
+          <h3>KNH-003 Dynamic Purchase System for Construction Contractors and Subcontractors</h3>
+          <table class="details">
+            <tr><td>Buyer</td><td><strong>Kirklees Neighbourhood Housing</strong></td></tr>
+            <tr><td>Location</td><td>Kirklees, West Yorkshire</td></tr>
+            <tr><td>Value</td><td>Not stated</td></tr>
+            <tr><td>Deadline</td><td>Check portal</td></tr>
+            <tr><td>Why</td><td style="color:#854F0B;font-style:italic;">Housing DPS covering decorating, flooring, voids — matches Simpled capabilities</td></tr>
+          </table>
+          <p class="desc">DPS for repair and maintenance trades: joinery, painting, flooring, roofing, voids, landscaping</p>
+          <a href="https://procontract.due-north.com/ContractsRegister/ViewContractDetails?contractId=8f3db61f-cd4f-e911-80f3-005056b64545" class="btn" target="_blank" rel="noopener">View tender →</a>
+        </div>
+        <div class="card" style="border-left:4px solid #EF9F27;">
+          <div class="card-meta">
+            <span class="badge" style="background:#FAEEDA;color:#854F0B;">Medium priority</span>
+            <span class="badge badge-type">Live Tender</span>
+          </div>
+          <h3>Minor Works Framework Agreement for New Forest District Council Housing Maintenance (2022–26)</h3>
+          <table class="details">
+            <tr><td>Buyer</td><td><strong>New Forest District Council</strong></td></tr>
+            <tr><td>Location</td><td>New Forest, Hampshire</td></tr>
+            <tr><td>Value</td><td>Not stated</td></tr>
+            <tr><td>Deadline</td><td>Check portal</td></tr>
+            <tr><td>Why</td><td style="color:#854F0B;font-style:italic;">Residential housing minor works framework — matches Simpled property maintenance</td></tr>
+          </table>
+          <p class="desc">Multi-contractor framework for minor residential housing maintenance and repair works</p>
+          <a href="https://procontract.due-north.com/ContractsRegister/ViewContractDetails?contractId=e1c4a5bd-df42-ec11-810e-005056b64545" class="btn" target="_blank" rel="noopener">View tender →</a>
+        </div>
   
+    <details class="skip-section">
+      <summary>Also checked — 4 not a fit</summary>
+      <table class="skip-table">
+        <thead><tr><th>Title</th><th>Buyer</th><th>Reason skipped</th></tr></thead>
+        <tbody><tr><td>Network Rail (High Speed) Lifts, Escalators and Moving Walkways Mainte</td><td>Network Rail High Speed</td><td>Specialist rail infrastructure — not property maintenance or housing sector</td></tr><tr><td>EN:Procure Framework for Lifts, Stairlifts and Personal Lifting Equipm</td><td>EN:Procure Ltd</td><td>Specialist lift/stairlift works — outside Simpled's core trade capability</td></tr><tr><td>Tender for Provision of Planned Maintenance Service — Hardwire Electri</td><td>Buckinghamshire Council</td><td>Specialist electrical compliance testing only — not general property maintenance</td></tr><tr><td>T140 — NI Water Mechanical Installation, Repair and Maintenance</td><td>NI Water</td><td>Utility/civil infrastructure — outside Simpled's property and housing scope</td></tr></tbody>
+      </table>
+    </details>
 </div>
 <div class="footer">Automated daily scan · Simpled Services Ltd · contractsfinder.service.gov.uk · find-tender.service.gov.uk</div>
 </body>
