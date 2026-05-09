@@ -8,49 +8,32 @@ from datetime import datetime, timedelta
 def get_search_prompt(days_back):
     today = datetime.now().strftime("%d %B %Y")
     cutoff = (datetime.now() - timedelta(days=days_back)).strftime("%d %B %Y")
+    date_filter = (datetime.now() - timedelta(days=days_back)).strftime('%Y-%m-%d')
     return f"""Today is {today}. Search for UK public sector tender opportunities published between {cutoff} and {today}.
 
-Use multiple searches with date filters:
-- site:contractsfinder.service.gov.uk property maintenance tender after:{(datetime.now() - timedelta(days=days_back)).strftime('%Y-%m-%d')}
-- site:contractsfinder.service.gov.uk refurbishment housing association after:{(datetime.now() - timedelta(days=days_back)).strftime('%Y-%m-%d')}
-- site:contractsfinder.service.gov.uk kitchen bathroom council after:{(datetime.now() - timedelta(days=days_back)).strftime('%Y-%m-%d')}
-- site:contractsfinder.service.gov.uk playground equipment after:{(datetime.now() - timedelta(days=days_back)).strftime('%Y-%m-%d')}
-- site:find-tender.service.gov.uk maintenance refurbishment after:{(datetime.now() - timedelta(days=days_back)).strftime('%Y-%m-%d')}
-- site:procontract.due-north.com maintenance housing after:{(datetime.now() - timedelta(days=days_back)).strftime('%Y-%m-%d')}
+Use multiple searches:
+- site:contractsfinder.service.gov.uk property maintenance tender after:{date_filter}
+- site:contractsfinder.service.gov.uk refurbishment housing association after:{date_filter}
+- site:contractsfinder.service.gov.uk kitchen bathroom council after:{date_filter}
+- site:contractsfinder.service.gov.uk playground equipment after:{date_filter}
+- site:find-tender.service.gov.uk maintenance refurbishment after:{date_filter}
+- site:procontract.due-north.com maintenance housing after:{date_filter}
 
-STRICT RULES — you must follow these:
-- Only include tenders where the submission deadline is in the future (after {today})
+STRICT RULES:
+- Only include tenders where the submission deadline is after {today}
 - Only include tenders published in the last {days_back} days
-- Do NOT include any expired tenders, awarded contracts, or historical results
-- Do NOT include anything from before 2026
-- If a deadline is not clear or looks old, set isMatch to false
+- Do NOT include expired tenders, awarded contracts, or anything from before 2026
 
 Finding tenders for Simpled Services Ltd — London-based property maintenance and refurbishment contractor.
+GOOD FIT: kitchen/bathroom refurbishments, property maintenance, playground equipment, open space, internal alterations, decoration, flooring, void works, estate maintenance, housing association or council works.
+NOT a fit: consultancy (architects, engineers, surveyors), civil infrastructure, IT/digital.
 
-GOOD FIT: kitchen/bathroom refurbishments, property maintenance, playground equipment, open space works, internal alterations, decoration, flooring, void works, estate maintenance, housing association or council works.
-NOT a fit: professional consultancy (architects, engineers, surveyors), civil infrastructure, IT/digital.
-
-After all searches, return ONLY a valid JSON array, no markdown, no explanation:
-[
-  {{
-    "title": "tender title",
-    "client": "buyer organisation",
-    "description": "what the work involves, max 15 words",
-    "link": "direct URL to the tender",
-    "deadline": "submission deadline as written, or null",
-    "estimatedValue": "contract value if stated, or null",
-    "location": "city or region",
-    "isMatch": true or false,
-    "matchReason": "why it matches or not, max 12 words",
-    "tenderType": "live or prior_notice"
-  }}
-]"""
+After all searches, return ONLY a valid JSON array, no markdown, no explanation whatsoever:
+[{{"title":"...","client":"...","description":"max 15 words","link":"url","deadline":"as written or null","estimatedValue":"or null","location":"city/region","isMatch":true,"matchReason":"max 12 words","tenderType":"live or prior_notice"}}]"""
 
 def is_future_deadline(deadline_str):
-    """Return True if deadline is in the future or unknown. False if clearly in the past."""
     if not deadline_str:
-        return True  # keep if no deadline info
-    # Try to find a year in the deadline string
+        return True
     years = re.findall(r'\b(20\d{2})\b', deadline_str)
     if years:
         year = int(years[-1])
@@ -58,14 +41,13 @@ def is_future_deadline(deadline_str):
         if year < current_year:
             return False
         if year == current_year:
-            # Try to parse the full date
-            for fmt in ["%d %B %Y", "%d/%m/%Y", "%Y-%m-%d", "%d %b %Y", "%B %d, %Y"]:
+            for fmt in ["%d %B %Y", "%d/%m/%Y", "%Y-%m-%d", "%d %b %Y"]:
                 try:
                     dt = datetime.strptime(deadline_str.strip()[:20], fmt)
                     return dt >= datetime.now()
                 except Exception:
                     pass
-    return True  # keep if we can't parse
+    return True
 
 def extract_json(text):
     try:
@@ -92,52 +74,85 @@ def extract_json(text):
             pass
     return []
 
+def reformat_to_json(claude_client, raw_text):
+    """Fresh lightweight call — just ask Claude to extract JSON from the raw text."""
+    print("  Reformatting via fresh call...")
+    try:
+        time.sleep(20)  # wait before retry to avoid rate limit
+        response = claude_client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=3000,
+            messages=[{
+                "role": "user",
+                "content": f"Extract all tender opportunities from the text below and return ONLY a valid JSON array. No markdown, no explanation, just the raw JSON array starting with [ and ending with ].\n\nText:\n{raw_text[:6000]}"
+            }]
+        )
+        text = "".join(b.text for b in response.content if hasattr(b, "text") and b.type == "text")
+        return extract_json(text)
+    except Exception as e:
+        print(f"  Reformat error: {e}")
+        return []
+
 def search_tenders(claude_client, days_back=1):
     print(f"Searching for tenders (last {days_back} day(s))...")
     tools = [{"type": "web_search_20250305", "name": "web_search"}]
-    prompt = get_search_prompt(days_back)
-    messages = [{"role": "user", "content": prompt}]
+    messages = [{"role": "user", "content": get_search_prompt(days_back)}]
+    all_text_so_far = []
 
-    for i in range(10):
-        response = claude_client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=4000,
-            tools=tools,
-            messages=messages,
-        )
+    for i in range(8):
+        try:
+            response = claude_client.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=4000,
+                tools=tools,
+                messages=messages,
+            )
+        except anthropic.RateLimitError:
+            print(f"  Rate limit hit on turn {i+1} — waiting 30s...")
+            time.sleep(30)
+            try:
+                response = claude_client.messages.create(
+                    model="claude-sonnet-4-6",
+                    max_tokens=4000,
+                    tools=tools,
+                    messages=messages,
+                )
+            except Exception as e:
+                print(f"  Retry failed: {e}")
+                break
 
         block_types = [b.type for b in response.content]
         print(f"  Turn {i+1}: stop_reason={response.stop_reason} blocks={block_types}")
 
         messages.append({"role": "assistant", "content": response.content})
-        time.sleep(8)
+
+        # Collect text blocks
+        text_blocks = [
+            b.text for b in response.content
+            if hasattr(b, "text") and b.type == "text"
+        ]
+        all_text_so_far.extend(text_blocks)
 
         if response.stop_reason == "end_turn":
-            text_blocks = [
-                b.text for b in response.content
-                if hasattr(b, "text") and b.type == "text"
-            ]
-            print(f"  Text blocks: {len(text_blocks)}, total chars: {sum(len(t) for t in text_blocks)}")
+            print(f"  Text blocks this turn: {len(text_blocks)}, chars: {sum(len(t) for t in text_blocks)}")
 
+            # Try each block individually
             for block in text_blocks:
                 result = extract_json(block)
                 if result:
                     print(f"  Parsed {len(result)} results from single block")
                     return result
 
+            # Try combined
             combined = "".join(text_blocks)
-            print(f"  Sample: {combined[:400]}")
             result = extract_json(combined)
             if result:
-                print(f"  Parsed {len(result)} results from combined text")
+                print(f"  Parsed {len(result)} results from combined")
                 return result
 
-            print("  JSON parse failed — asking Claude to reformat...")
-            messages.append({
-                "role": "user",
-                "content": "Return ONLY the JSON array from your findings above. No explanation, no markdown, just the raw [ ... ] array."
-            })
-            continue
+            # Fall back to fresh lightweight call with all text collected so far
+            all_text = "".join(all_text_so_far)
+            return reformat_to_json(claude_client, all_text)
 
         elif response.stop_reason == "tool_use":
             tool_results = []
@@ -151,6 +166,7 @@ def search_tenders(claude_client, days_back=1):
                     })
             if tool_results:
                 messages.append({"role": "user", "content": tool_results})
+                time.sleep(12)
             else:
                 break
         else:
@@ -205,7 +221,7 @@ def build_html(matches, all_results, removed_count=0):
             <tr><td>Why</td><td style="color:{c['color']};font-style:italic;">{m.get('matchReason','')}</td></tr>
           </table>
           {f'<p class="desc">{desc}</p>' if desc else ''}
-          <a href="{link}" class="btn" target="_blank" rel="noopener">View tender →</a>
+          <a href="{link}" class="btn" target="_blank" rel="noopener">View tender &rarr;</a>
         </div>"""
 
     cards_html = ""
@@ -222,7 +238,7 @@ def build_html(matches, all_results, removed_count=0):
     )
     skip_section = f"""
     <details class="skip-section">
-      <summary>Also checked — {len(non_matches)} not a fit{f', {removed_count} removed (expired)' if removed_count else ''}</summary>
+      <summary>Also checked &mdash; {len(non_matches)} not a fit{f', {removed_count} expired removed' if removed_count else ''}</summary>
       <table class="skip-table">
         <thead><tr><th>Title</th><th>Buyer</th><th>Reason skipped</th></tr></thead>
         <tbody>{skip_rows}</tbody>
@@ -238,55 +254,55 @@ def build_html(matches, all_results, removed_count=0):
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Simpled Tender Bot</title>
 <style>
-  *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
-  body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; color: #1a1a1a; line-height: 1.5; }}
-  .header {{ background: #fff; border-bottom: 3px solid #185FA5; padding: 20px 24px; position: sticky; top: 0; z-index: 10; }}
-  .header h1 {{ font-size: 20px; color: #185FA5; font-weight: 600; }}
-  .header p {{ font-size: 13px; color: #999; margin-top: 2px; }}
-  .stats {{ display: flex; gap: 12px; padding: 16px 24px; background: #fff; border-bottom: 1px solid #eee; flex-wrap: wrap; }}
-  .stat {{ background: #f5f5f5; border-radius: 8px; padding: 10px 16px; min-width: 90px; }}
-  .stat-label {{ font-size: 11px; color: #999; text-transform: uppercase; letter-spacing: 0.04em; }}
-  .stat-value {{ font-size: 22px; font-weight: 600; color: #1a1a1a; }}
-  .content {{ max-width: 760px; margin: 0 auto; padding: 24px 16px; }}
-  .section-title {{ font-size: 13px; font-weight: 700; margin: 24px 0 10px; text-transform: uppercase; letter-spacing: 0.05em; }}
-  .card {{ background: #fff; border: 1px solid #e5e5e5; border-radius: 10px; padding: 18px; margin-bottom: 12px; }}
-  .card h3 {{ font-size: 15px; font-weight: 600; margin: 10px 0 12px; line-height: 1.4; }}
-  .card-meta {{ display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }}
-  .badge {{ font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 5px; text-transform: uppercase; letter-spacing: 0.03em; }}
-  .badge-type {{ background: #f0f0f0; color: #555; }}
-  .details {{ width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 12px; }}
-  .details td {{ padding: 4px 0; vertical-align: top; }}
-  .details td:first-child {{ color: #999; font-size: 12px; width: 80px; padding-right: 8px; }}
-  .desc {{ font-size: 13px; color: #666; margin-bottom: 14px; line-height: 1.5; }}
-  .btn {{ display: inline-block; background: #185FA5; color: #fff; padding: 8px 18px; border-radius: 6px; font-size: 13px; font-weight: 600; text-decoration: none; }}
-  .btn:hover {{ background: #0C447C; }}
-  .no-match {{ color: #999; font-size: 14px; margin: 40px 0; text-align: center; }}
-  .skip-section {{ margin-top: 24px; border: 1px solid #eee; border-radius: 8px; overflow: hidden; }}
-  .skip-section summary {{ padding: 12px 16px; font-size: 13px; color: #aaa; cursor: pointer; background: #fafafa; }}
-  .skip-table {{ width: 100%; border-collapse: collapse; font-size: 12px; }}
-  .skip-table th {{ padding: 8px 12px; text-align: left; background: #f5f5f5; color: #aaa; font-size: 11px; text-transform: uppercase; }}
-  .skip-table td {{ padding: 7px 12px; border-top: 1px solid #f0f0f0; color: #666; }}
-  .footer {{ text-align: center; font-size: 11px; color: #ccc; padding: 24px; }}
-  @media (max-width: 600px) {{ .stats {{ gap: 8px; }} .content {{ padding: 16px 12px; }} }}
+  *,*::before,*::after{{box-sizing:border-box;margin:0;padding:0}}
+  body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f5;color:#1a1a1a;line-height:1.5}}
+  .header{{background:#fff;border-bottom:3px solid #185FA5;padding:20px 24px;position:sticky;top:0;z-index:10}}
+  .header h1{{font-size:20px;color:#185FA5;font-weight:600}}
+  .header p{{font-size:13px;color:#999;margin-top:2px}}
+  .stats{{display:flex;gap:12px;padding:16px 24px;background:#fff;border-bottom:1px solid #eee;flex-wrap:wrap}}
+  .stat{{background:#f5f5f5;border-radius:8px;padding:10px 16px;min-width:90px}}
+  .stat-label{{font-size:11px;color:#999;text-transform:uppercase;letter-spacing:.04em}}
+  .stat-value{{font-size:22px;font-weight:600;color:#1a1a1a}}
+  .content{{max-width:760px;margin:0 auto;padding:24px 16px}}
+  .section-title{{font-size:13px;font-weight:700;margin:24px 0 10px;text-transform:uppercase;letter-spacing:.05em}}
+  .card{{background:#fff;border:1px solid #e5e5e5;border-radius:10px;padding:18px;margin-bottom:12px}}
+  .card h3{{font-size:15px;font-weight:600;margin:10px 0 12px;line-height:1.4}}
+  .card-meta{{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:4px}}
+  .badge{{font-size:11px;font-weight:700;padding:3px 9px;border-radius:5px;text-transform:uppercase;letter-spacing:.03em}}
+  .badge-type{{background:#f0f0f0;color:#555}}
+  .details{{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:12px}}
+  .details td{{padding:4px 0;vertical-align:top}}
+  .details td:first-child{{color:#999;font-size:12px;width:80px;padding-right:8px}}
+  .desc{{font-size:13px;color:#666;margin-bottom:14px;line-height:1.5}}
+  .btn{{display:inline-block;background:#185FA5;color:#fff;padding:8px 18px;border-radius:6px;font-size:13px;font-weight:600;text-decoration:none}}
+  .btn:hover{{background:#0C447C}}
+  .no-match{{color:#999;font-size:14px;margin:40px 0;text-align:center}}
+  .skip-section{{margin-top:24px;border:1px solid #eee;border-radius:8px;overflow:hidden}}
+  .skip-section summary{{padding:12px 16px;font-size:13px;color:#aaa;cursor:pointer;background:#fafafa}}
+  .skip-table{{width:100%;border-collapse:collapse;font-size:12px}}
+  .skip-table th{{padding:8px 12px;text-align:left;background:#f5f5f5;color:#aaa;font-size:11px;text-transform:uppercase}}
+  .skip-table td{{padding:7px 12px;border-top:1px solid #f0f0f0;color:#666}}
+  .footer{{text-align:center;font-size:11px;color:#ccc;padding:24px}}
+  @media(max-width:600px){{.stats{{gap:8px}}.content{{padding:16px 12px}}}}
 </style>
 </head>
 <body>
 <div class="header">
   <h1>Simpled Tender Bot</h1>
-  <p>{count} match{'es' if count != 1 else ''} from {len(all_results)} scanned · {date_str} at {time_str}</p>
+  <p>{count} match{'es' if count != 1 else ''} from {len(all_results)} scanned &middot; {date_str} at {time_str}</p>
 </div>
 <div class="stats">
   <div class="stat"><div class="stat-label">Scanned</div><div class="stat-value">{len(all_results)}</div></div>
   <div class="stat"><div class="stat-label">Matches</div><div class="stat-value">{count}</div></div>
-  <div class="stat"><div class="stat-label">High</div><div class="stat-value" style="color:#3B6D11">{len([m for m in matches if m.get('priority') == 'high'])}</div></div>
-  <div class="stat"><div class="stat-label">Medium</div><div class="stat-value" style="color:#854F0B">{len([m for m in matches if m.get('priority') == 'medium'])}</div></div>
+  <div class="stat"><div class="stat-label">High</div><div class="stat-value" style="color:#3B6D11">{len([m for m in matches if m.get('priority')=='high'])}</div></div>
+  <div class="stat"><div class="stat-label">Medium</div><div class="stat-value" style="color:#854F0B">{len([m for m in matches if m.get('priority')=='medium'])}</div></div>
 </div>
 <div class="content">
   {no_match_msg}
   {cards_html}
   {skip_section}
 </div>
-<div class="footer">Automated daily scan · Simpled Services Ltd · contractsfinder.service.gov.uk · find-tender.service.gov.uk</div>
+<div class="footer">Automated daily scan &middot; Simpled Services Ltd &middot; contractsfinder.service.gov.uk &middot; find-tender.service.gov.uk</div>
 </body>
 </html>"""
 
@@ -307,7 +323,6 @@ def main():
     if not results:
         results = []
 
-    # Filter out anything with a clearly past deadline
     before_filter = len(results)
     results = [r for r in results if is_future_deadline(r.get("deadline", ""))]
     removed = before_filter - len(results)
@@ -317,7 +332,7 @@ def main():
     matches = [r for r in results if r.get("isMatch")]
     for m in matches:
         m["priority"] = priority_for(m)
-    matches.sort(key=lambda m: {"high": 0, "medium": 1, "low": 2}.get(m.get("priority", "low"), 1))
+    matches.sort(key=lambda m: {"high":0,"medium":1,"low":2}.get(m.get("priority","low"),1))
 
     print(f"\n{'─'*50}")
     print(f"{len(matches)} matches from {len(results)} tenders scanned")
