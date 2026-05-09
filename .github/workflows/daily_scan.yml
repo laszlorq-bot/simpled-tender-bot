@@ -2,10 +2,8 @@ name: Simpled Daily Tender Scan
 
 on:
   schedule:
-    # Runs every day at 7:00 AM UTC (8:00 AM UK time, 9:00 AM Morocco/Spain)
     - cron: "0 7 * * *"
   workflow_dispatch:
-    # Also allows manual trigger from GitHub UI (useful for testing)
     inputs:
       days_back:
         description: "How many days back to scan (default 1)"
@@ -16,6 +14,8 @@ jobs:
   scan:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout repo
@@ -29,11 +29,19 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Create docs folder
+        run: mkdir -p docs
+
       - name: Run tender bot
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
-          SENDER_PASSWORD: ${{ secrets.SENDER_PASSWORD }}
-          RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
           DAYS_BACK: ${{ github.event.inputs.days_back || '1' }}
         run: python tender_bot.py
+
+      - name: Publish dashboard
+        run: |
+          git config user.name "Tender Bot"
+          git config user.email "bot@simpled.co.uk"
+          git add docs/index.html
+          git diff --staged --quiet || git commit -m "Update tender dashboard $(date +'%d %b %Y')"
+          git push
