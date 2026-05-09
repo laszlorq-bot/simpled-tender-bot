@@ -44,7 +44,7 @@ def search_tenders(claude_client, days_back=1):
     prompt = SEARCH_PROMPT.format(days=days_back)
     try:
         msg = claude_client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model="claude-sonnet-4-6",
             max_tokens=4000,
             tools=[{"type": "web_search_20250305", "name": "web_search"}],
             messages=[{"role": "user", "content": prompt}]
