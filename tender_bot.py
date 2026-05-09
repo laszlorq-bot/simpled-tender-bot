@@ -5,22 +5,32 @@ import time
 import anthropic
 from datetime import datetime, timedelta
 
-SEARCH_PROMPT = """Search for UK public sector tender opportunities published in the last {days} days.
+def get_search_prompt(days_back):
+    today = datetime.now().strftime("%d %B %Y")
+    cutoff = (datetime.now() - timedelta(days=days_back)).strftime("%d %B %Y")
+    return f"""Today is {today}. Search for UK public sector tender opportunities published between {cutoff} and {today}.
 
-Use multiple searches:
-- site:contractsfinder.service.gov.uk property maintenance tender
-- site:contractsfinder.service.gov.uk refurbishment housing association
-- site:contractsfinder.service.gov.uk kitchen bathroom council tender
-- site:contractsfinder.service.gov.uk playground equipment
-- site:find-tender.service.gov.uk maintenance refurbishment
-- site:procontract.due-north.com maintenance housing
+Use multiple searches with date filters:
+- site:contractsfinder.service.gov.uk property maintenance tender after:{(datetime.now() - timedelta(days=days_back)).strftime('%Y-%m-%d')}
+- site:contractsfinder.service.gov.uk refurbishment housing association after:{(datetime.now() - timedelta(days=days_back)).strftime('%Y-%m-%d')}
+- site:contractsfinder.service.gov.uk kitchen bathroom council after:{(datetime.now() - timedelta(days=days_back)).strftime('%Y-%m-%d')}
+- site:contractsfinder.service.gov.uk playground equipment after:{(datetime.now() - timedelta(days=days_back)).strftime('%Y-%m-%d')}
+- site:find-tender.service.gov.uk maintenance refurbishment after:{(datetime.now() - timedelta(days=days_back)).strftime('%Y-%m-%d')}
+- site:procontract.due-north.com maintenance housing after:{(datetime.now() - timedelta(days=days_back)).strftime('%Y-%m-%d')}
+
+STRICT RULES — you must follow these:
+- Only include tenders where the submission deadline is in the future (after {today})
+- Only include tenders published in the last {days_back} days
+- Do NOT include any expired tenders, awarded contracts, or historical results
+- Do NOT include anything from before 2026
+- If a deadline is not clear or looks old, set isMatch to false
 
 Finding tenders for Simpled Services Ltd — London-based property maintenance and refurbishment contractor.
 
 GOOD FIT: kitchen/bathroom refurbishments, property maintenance, playground equipment, open space works, internal alterations, decoration, flooring, void works, estate maintenance, housing association or council works.
 NOT a fit: professional consultancy (architects, engineers, surveyors), civil infrastructure, IT/digital.
 
-After all searches are done, return ONLY a valid JSON array with no explanation, no markdown, no text before or after it:
+After all searches, return ONLY a valid JSON array, no markdown, no explanation:
 [
   {{
     "title": "tender title",
@@ -36,17 +46,34 @@ After all searches are done, return ONLY a valid JSON array with no explanation,
   }}
 ]"""
 
+def is_future_deadline(deadline_str):
+    """Return True if deadline is in the future or unknown. False if clearly in the past."""
+    if not deadline_str:
+        return True  # keep if no deadline info
+    # Try to find a year in the deadline string
+    years = re.findall(r'\b(20\d{2})\b', deadline_str)
+    if years:
+        year = int(years[-1])
+        current_year = datetime.now().year
+        if year < current_year:
+            return False
+        if year == current_year:
+            # Try to parse the full date
+            for fmt in ["%d %B %Y", "%d/%m/%Y", "%Y-%m-%d", "%d %b %Y", "%B %d, %Y"]:
+                try:
+                    dt = datetime.strptime(deadline_str.strip()[:20], fmt)
+                    return dt >= datetime.now()
+                except Exception:
+                    pass
+    return True  # keep if we can't parse
+
 def extract_json(text):
-    """Try multiple strategies to extract a JSON array from text."""
-    # Strategy 1: direct parse
     try:
         result = json.loads(text.strip())
         if isinstance(result, list):
             return result
     except Exception:
         pass
-
-    # Strategy 2: strip markdown fences
     cleaned = re.sub(r"```json|```", "", text).strip()
     try:
         result = json.loads(cleaned)
@@ -54,8 +81,6 @@ def extract_json(text):
             return result
     except Exception:
         pass
-
-    # Strategy 3: find outermost [ ... ]
     start = text.find("[")
     end = text.rfind("]")
     if start != -1 and end != -1 and end > start:
@@ -65,13 +90,13 @@ def extract_json(text):
                 return result
         except Exception:
             pass
-
     return []
 
 def search_tenders(claude_client, days_back=1):
     print(f"Searching for tenders (last {days_back} day(s))...")
     tools = [{"type": "web_search_20250305", "name": "web_search"}]
-    messages = [{"role": "user", "content": SEARCH_PROMPT.format(days=days_back)}]
+    prompt = get_search_prompt(days_back)
+    messages = [{"role": "user", "content": prompt}]
 
     for i in range(10):
         response = claude_client.messages.create(
@@ -88,21 +113,18 @@ def search_tenders(claude_client, days_back=1):
         time.sleep(8)
 
         if response.stop_reason == "end_turn":
-            # Collect all text blocks
             text_blocks = [
                 b.text for b in response.content
                 if hasattr(b, "text") and b.type == "text"
             ]
             print(f"  Text blocks: {len(text_blocks)}, total chars: {sum(len(t) for t in text_blocks)}")
 
-            # Try each block individually first
             for block in text_blocks:
                 result = extract_json(block)
                 if result:
                     print(f"  Parsed {len(result)} results from single block")
                     return result
 
-            # Fall back: join all blocks and try again
             combined = "".join(text_blocks)
             print(f"  Sample: {combined[:400]}")
             result = extract_json(combined)
@@ -110,7 +132,6 @@ def search_tenders(claude_client, days_back=1):
                 print(f"  Parsed {len(result)} results from combined text")
                 return result
 
-            # Last resort: ask Claude to return just the JSON
             print("  JSON parse failed — asking Claude to reformat...")
             messages.append({
                 "role": "user",
@@ -147,7 +168,7 @@ def priority_for(match):
         "hertfordshire", "middlesex", "berkshire"
     ]) else "medium"
 
-def build_html(matches, all_results):
+def build_html(matches, all_results, removed_count=0):
     now = datetime.now()
     date_str = now.strftime("%d %B %Y")
     time_str = now.strftime("%H:%M UTC")
@@ -201,7 +222,7 @@ def build_html(matches, all_results):
     )
     skip_section = f"""
     <details class="skip-section">
-      <summary>Also checked — {len(non_matches)} not a fit</summary>
+      <summary>Also checked — {len(non_matches)} not a fit{f', {removed_count} removed (expired)' if removed_count else ''}</summary>
       <table class="skip-table">
         <thead><tr><th>Title</th><th>Buyer</th><th>Reason skipped</th></tr></thead>
         <tbody>{skip_rows}</tbody>
@@ -286,6 +307,13 @@ def main():
     if not results:
         results = []
 
+    # Filter out anything with a clearly past deadline
+    before_filter = len(results)
+    results = [r for r in results if is_future_deadline(r.get("deadline", ""))]
+    removed = before_filter - len(results)
+    if removed:
+        print(f"Removed {removed} expired tenders")
+
     matches = [r for r in results if r.get("isMatch")]
     for m in matches:
         m["priority"] = priority_for(m)
@@ -298,7 +326,7 @@ def main():
     print(f"{'─'*50}\n")
 
     os.makedirs("docs", exist_ok=True)
-    html = build_html(matches, results)
+    html = build_html(matches, results, removed_count=removed)
     with open("docs/index.html", "w", encoding="utf-8") as f:
         f.write(html)
     print("Dashboard written to docs/index.html")
