@@ -1,310 +1,242 @@
 import json
-import re
 import os
-import time
+import requests
 import anthropic
 from datetime import datetime, timedelta
 
-def get_search_prompt(days_back):
-    today = datetime.now().strftime("%d %B %Y")
-    cutoff = (datetime.now() - timedelta(days=days_back)).strftime("%d %B %Y")
-    date_filter = (datetime.now() - timedelta(days=days_back)).strftime('%Y-%m-%d')
-    return f"""Today is {today}. Search for UK public sector tender opportunities published between {cutoff} and {today}.
+# ─── CONFIG ───────────────────────────────────────────────────────────────────
 
-Use multiple searches:
-- site:contractsfinder.service.gov.uk property maintenance tender after:{date_filter}
-- site:contractsfinder.service.gov.uk refurbishment housing association after:{date_filter}
-- site:contractsfinder.service.gov.uk kitchen bathroom council after:{date_filter}
-- site:contractsfinder.service.gov.uk playground equipment after:{date_filter}
-- site:find-tender.service.gov.uk maintenance refurbishment after:{date_filter}
-- site:procontract.due-north.com maintenance housing after:{date_filter}
+KEYWORDS = [
+    "maintenance", "refurbishment", "kitchen", "bathroom", "playground",
+    "void", "decoration", "painting", "flooring", "housing", "property",
+    "open space", "estate", "building works", "alterations", "repair",
+    "retrofit", "renovation", "dwelling", "residential", "social housing",
+    "facilities", "fabric", "roofing", "plumbing", "damp", "insulation",
+    "window", "door", "rewire", "boiler", "grounds", "caretaking", "cleaning",
+]
 
-STRICT RULES:
-- Only include tenders where the submission deadline is after {today}
-- Only include tenders published in the last {days_back} days
-- Do NOT include expired tenders, awarded contracts, or anything from before 2026
+COMPANY_PROFILE = """
+Simpled Services Ltd — London-based property maintenance and refurbishment contractor.
 
-Finding tenders for Simpled Services Ltd — London-based property maintenance and refurbishment contractor.
-GOOD FIT: kitchen/bathroom refurbishments, property maintenance, playground equipment, open space, internal alterations, decoration, flooring, void works, estate maintenance, housing association or council works.
-NOT a fit: consultancy (architects, engineers, surveyors), civil infrastructure, IT/digital.
+GOOD FIT: kitchen/bathroom refurbishments, property maintenance, playground equipment,
+open space works, internal alterations, decoration, flooring, void works, estate
+maintenance, building fabric, housing association or council works.
 
-After all searches, return ONLY a valid JSON array, no markdown, no explanation whatsoever:
-[{{"title":"...","client":"...","description":"max 15 words","link":"url","deadline":"as written or null","estimatedValue":"or null","location":"city/region","isMatch":true,"matchReason":"max 12 words","tenderType":"live or prior_notice"}}]"""
+NOT a fit: professional consultancy (architects, engineers, surveyors), large civil
+infrastructure, IT/digital, works entirely outside UK.
+"""
 
-def is_future_deadline(deadline_str):
-    if not deadline_str:
-        return True
-    years = re.findall(r'\b(20\d{2})\b', deadline_str)
-    if years:
-        year = int(years[-1])
-        current_year = datetime.now().year
-        if year < current_year:
-            return False
-        if year == current_year:
-            for fmt in ["%d %B %Y", "%d/%m/%Y", "%Y-%m-%d", "%d %b %Y"]:
-                try:
-                    dt = datetime.strptime(deadline_str.strip()[:20], fmt)
-                    return dt >= datetime.now()
-                except Exception:
-                    pass
-    return True
+# ─── FETCH FROM CONTRACTS FINDER ─────────────────────────────────────────────
 
-def extract_json(text):
-    try:
-        result = json.loads(text.strip())
-        if isinstance(result, list):
-            return result
-    except Exception:
-        pass
-    cleaned = re.sub(r"```json|```", "", text).strip()
-    try:
-        result = json.loads(cleaned)
-        if isinstance(result, list):
-            return result
-    except Exception:
-        pass
-    start = text.find("[")
-    end = text.rfind("]")
-    if start != -1 and end != -1 and end > start:
+def fetch_notices(days_back=1):
+    base = "https://www.contractsfinder.service.gov.uk"
+    published_from = (datetime.now() - timedelta(days=days_back)).strftime("%Y-%m-%d")
+    published_to = datetime.now().strftime("%Y-%m-%d")
+
+    url = f"{base}/Published/Notices/OCDS/Search"
+    params = {
+        "publishedFrom": published_from,
+        "publishedTo": published_to,
+        "stages": "tender,planning",
+        "limit": 100,
+    }
+
+    all_releases = []
+    seen = set()
+
+    print(f"Fetching from Contracts Finder ({published_from} to {published_to})...")
+
+    while True:
         try:
-            result = json.loads(text[start:end+1])
-            if isinstance(result, list):
-                return result
-        except Exception:
-            pass
-    return []
+            resp = requests.get(url, params=params, timeout=20,
+                                headers={"Accept": "application/json"})
+            print(f"  HTTP {resp.status_code}")
 
-def reformat_to_json(claude_client, raw_text):
-    """Fresh lightweight call — just ask Claude to extract JSON from the raw text."""
-    print("  Reformatting via fresh call...")
-    try:
-        time.sleep(20)  # wait before retry to avoid rate limit
-        response = claude_client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=3000,
-            messages=[{
-                "role": "user",
-                "content": f"Extract all tender opportunities from the text below and return ONLY a valid JSON array. No markdown, no explanation, just the raw JSON array starting with [ and ending with ].\n\nText:\n{raw_text[:6000]}"
-            }]
-        )
-        text = "".join(b.text for b in response.content if hasattr(b, "text") and b.type == "text")
-        return extract_json(text)
-    except Exception as e:
-        print(f"  Reformat error: {e}")
-        return []
-
-def search_tenders(claude_client, days_back=1):
-    print(f"Searching for tenders (last {days_back} day(s))...")
-    tools = [{"type": "web_search_20250305", "name": "web_search"}]
-    messages = [{"role": "user", "content": get_search_prompt(days_back)}]
-    all_text_so_far = []
-
-    for i in range(8):
-        try:
-            response = claude_client.messages.create(
-                model="claude-sonnet-4-6",
-                max_tokens=4000,
-                tools=tools,
-                messages=messages,
-            )
-        except anthropic.RateLimitError:
-            print(f"  Rate limit hit on turn {i+1} — waiting 30s...")
-            time.sleep(30)
-            try:
-                response = claude_client.messages.create(
-                    model="claude-sonnet-4-6",
-                    max_tokens=4000,
-                    tools=tools,
-                    messages=messages,
-                )
-            except Exception as e:
-                print(f"  Retry failed: {e}")
+            if resp.status_code != 200:
+                print(f"  Error: {resp.text[:300]}")
                 break
 
-        block_types = [b.type for b in response.content]
-        print(f"  Turn {i+1}: stop_reason={response.stop_reason} blocks={block_types}")
+            data = resp.json()
+            releases = data.get("releases", [])
+            print(f"  Got {len(releases)} releases")
 
-        messages.append({"role": "assistant", "content": response.content})
-
-        # Collect text blocks
-        text_blocks = [
-            b.text for b in response.content
-            if hasattr(b, "text") and b.type == "text"
-        ]
-        all_text_so_far.extend(text_blocks)
-
-        if response.stop_reason == "end_turn":
-            print(f"  Text blocks this turn: {len(text_blocks)}, chars: {sum(len(t) for t in text_blocks)}")
-
-            # Try each block individually
-            for block in text_blocks:
-                result = extract_json(block)
-                if result:
-                    print(f"  Parsed {len(result)} results from single block")
-                    return result
-
-            # Try combined
-            combined = "".join(text_blocks)
-            result = extract_json(combined)
-            if result:
-                print(f"  Parsed {len(result)} results from combined")
-                return result
-
-            # Fall back to fresh lightweight call with all text collected so far
-            all_text = "".join(all_text_so_far)
-            return reformat_to_json(claude_client, all_text)
-
-        elif response.stop_reason == "tool_use":
-            tool_results = []
-            for block in response.content:
-                if block.type == "tool_use":
-                    print(f"    Search: {getattr(block, 'input', {})}")
-                    tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": block.id,
-                        "content": "Search completed.",
-                    })
-            if tool_results:
-                messages.append({"role": "user", "content": tool_results})
-                time.sleep(12)
-            else:
+            if not releases:
                 break
-        else:
+
+            for r in releases:
+                ocid = r.get("ocid", "")
+                if ocid and ocid not in seen:
+                    seen.add(ocid)
+                    all_releases.append(r)
+
+            # Pagination via cursor
+            cursor = data.get("cursor")
+            if not cursor or len(releases) < 100:
+                break
+            params["cursor"] = cursor
+
+        except Exception as e:
+            print(f"  Fetch error: {e}")
             break
 
-    print("  Could not parse results.")
+    print(f"Total fetched: {len(all_releases)}")
+
+    # Keyword pre-filter
+    filtered = []
+    for r in all_releases:
+        t = r.get("tender", {})
+        text = (t.get("title", "") + " " + t.get("description", "")).lower()
+        if any(kw in text for kw in KEYWORDS):
+            filtered.append(r)
+
+    print(f"After keyword filter: {len(filtered)} to analyse\n")
+    return filtered
+
+# ─── EXTRACT FIELDS ───────────────────────────────────────────────────────────
+
+def extract(release):
+    t = release.get("tender", {})
+    parties = release.get("parties", [])
+    buyer = next((p for p in parties if "buyer" in p.get("roles", [])), {})
+    value = t.get("value", {}).get("amount")
+    deadline = t.get("tenderPeriod", {}).get("endDate", "")
+    locs = t.get("deliveryLocations", [])
+    loc = locs[0].get("description", "") if locs else ""
+    ocid = release.get("ocid", "")
+    notice_id = ocid.replace("ocds-b5fd17-", "")
+    return {
+        "title":  t.get("title", "Untitled"),
+        "buyer":  buyer.get("name", "Unknown"),
+        "description": (t.get("description") or "")[:400],
+        "value":  f"£{value:,.0f}" if value else "Not stated",
+        "deadline": deadline[:10] if deadline else "",
+        "location": loc,
+        "link": f"https://www.contractsfinder.service.gov.uk/Notice/{notice_id}",
+    }
+
+# ─── ANALYSE WITH CLAUDE ──────────────────────────────────────────────────────
+
+def analyse_batch(notices, claude_client):
+    """Send up to 20 notices to Claude in one call to save tokens."""
+    if not notices:
+        return []
+
+    items = []
+    for i, n in enumerate(notices):
+        items.append(
+            f"[{i}] Title: {n['title']}\n"
+            f"    Buyer: {n['buyer']}\n"
+            f"    Location: {n['location'] or 'unknown'}\n"
+            f"    Value: {n['value']}\n"
+            f"    Deadline: {n['deadline'] or 'unknown'}\n"
+            f"    Description: {n['description'][:150]}"
+        )
+
+    prompt = f"""Assess each tender below for Simpled Services Ltd.
+{COMPANY_PROFILE}
+
+Tenders:
+{chr(10).join(items)}
+
+Return ONLY a JSON array with one object per tender (same order, same indexes):
+[{{"index":0,"isMatch":true,"priority":"high/medium/low","reason":"max 12 words","tenderType":"live or prior_notice"}}]"""
+
+    try:
+        msg = claude_client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=1500,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        text = msg.content[0].text.strip().replace("```json","").replace("```","").strip()
+        start, end = text.find("["), text.rfind("]")
+        if start != -1 and end != -1:
+            return json.loads(text[start:end+1])
+    except Exception as e:
+        print(f"  Claude batch error: {e}")
     return []
 
-def priority_for(match):
-    if "priority" in match:
-        return match["priority"]
-    loc = (match.get("location") or "").lower()
-    return "high" if any(x in loc for x in [
-        "london", "south east", "essex", "kent", "surrey",
-        "hertfordshire", "middlesex", "berkshire"
-    ]) else "medium"
+# ─── BUILD HTML DASHBOARD ────────────────────────────────────────────────────
 
-def build_html(matches, all_results, removed_count=0):
+def build_html(matches, total_scanned):
     now = datetime.now()
     date_str = now.strftime("%d %B %Y")
     time_str = now.strftime("%H:%M UTC")
     count = len(matches)
-    non_matches = [r for r in all_results if not r.get("isMatch")]
 
-    priority_colors = {
-        "high":   {"bg":"#EAF3DE","color":"#3B6D11","border":"#1D9E75","label":"High priority"},
-        "medium": {"bg":"#FAEEDA","color":"#854F0B","border":"#EF9F27","label":"Medium priority"},
-        "low":    {"bg":"#E6F1FB","color":"#185FA5","border":"#378ADD","label":"Low priority"},
+    COLS = {
+        "high":   ("#3B6D11","#EAF3DE","#1D9E75"),
+        "medium": ("#854F0B","#FAEEDA","#EF9F27"),
+        "low":    ("#185FA5","#E6F1FB","#378ADD"),
     }
 
     def card(m):
-        p = m.get("priority", "medium")
-        c = priority_colors.get(p, priority_colors["medium"])
-        tl = "Prior Notice" if m.get("tenderType") == "prior_notice" else "Live Tender"
-        desc = m.get("description", "")
-        val = m.get("estimatedValue") or "Not stated"
-        dl = m.get("deadline") or "Check portal"
-        loc = m.get("location") or "Not specified"
-        link = m.get("link", "#")
-        return f"""
-        <div class="card" style="border-left:4px solid {c['border']};">
-          <div class="card-meta">
-            <span class="badge" style="background:{c['bg']};color:{c['color']};">{c['label']}</span>
-            <span class="badge badge-type">{tl}</span>
-          </div>
-          <h3>{m.get('title','')}</h3>
-          <table class="details">
-            <tr><td>Buyer</td><td><strong>{m.get('client','')}</strong></td></tr>
-            <tr><td>Location</td><td>{loc}</td></tr>
-            <tr><td>Value</td><td>{val}</td></tr>
-            <tr><td>Deadline</td><td>{dl}</td></tr>
-            <tr><td>Why</td><td style="color:{c['color']};font-style:italic;">{m.get('matchReason','')}</td></tr>
-          </table>
-          {f'<p class="desc">{desc}</p>' if desc else ''}
-          <a href="{link}" class="btn" target="_blank" rel="noopener">View tender &rarr;</a>
-        </div>"""
+        p = m.get("priority","medium")
+        tc,bg,bc = COLS.get(p, COLS["medium"])
+        tl = "Prior Notice" if m.get("tenderType")=="prior_notice" else "Live Tender"
+        n = m["notice"]
+        return f"""<div class="card" style="border-left:4px solid {bc}">
+  <div class="meta"><span class="badge" style="background:{bg};color:{tc}">{p.upper()}</span><span class="badge b2">{tl}</span></div>
+  <h3>{n['title']}</h3>
+  <table><tr><td>Buyer</td><td><b>{n['buyer']}</b></td></tr>
+  <tr><td>Location</td><td>{n['location'] or 'Not specified'}</td></tr>
+  <tr><td>Value</td><td>{n['value']}</td></tr>
+  <tr><td>Deadline</td><td>{n['deadline'] or 'Check portal'}</td></tr>
+  <tr><td>Why</td><td style="color:{tc};font-style:italic">{m.get('reason','')}</td></tr></table>
+  {f'<p class="desc">{n["description"][:200]}</p>' if n.get('description') else ''}
+  <a class="btn" href="{n['link']}" target="_blank">View tender &rarr;</a>
+</div>"""
 
-    cards_html = ""
-    for p_key in ["high", "medium", "low"]:
-        group = [m for m in matches if m.get("priority") == p_key]
+    sections = ""
+    for pk in ["high","medium","low"]:
+        group = [m for m in matches if m.get("priority")==pk]
         if group:
-            c = priority_colors[p_key]
-            cards_html += f'<h2 class="section-title" style="color:{c["color"]}">{c["label"]} ({len(group)})</h2>'
-            cards_html += "".join(card(m) for m in group)
+            tc = COLS[pk][0]
+            sections += f'<h2 class="sh" style="color:{tc}">{pk.title()} priority ({len(group)})</h2>'
+            sections += "".join(card(m) for m in group)
 
-    skip_rows = "".join(
-        f'<tr><td>{r.get("title","")[:70]}</td><td>{r.get("client","")}</td><td>{r.get("matchReason","")}</td></tr>'
-        for r in non_matches[:20]
-    )
-    skip_section = f"""
-    <details class="skip-section">
-      <summary>Also checked &mdash; {len(non_matches)} not a fit{f', {removed_count} expired removed' if removed_count else ''}</summary>
-      <table class="skip-table">
-        <thead><tr><th>Title</th><th>Buyer</th><th>Reason skipped</th></tr></thead>
-        <tbody>{skip_rows}</tbody>
-      </table>
-    </details>""" if skip_rows else ""
-
-    no_match_msg = '<p class="no-match">No matches found today. Check back tomorrow.</p>' if not matches else ""
-
-    return f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+    return f"""<!DOCTYPE html><html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Simpled Tender Bot</title>
 <style>
-  *,*::before,*::after{{box-sizing:border-box;margin:0;padding:0}}
-  body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f5;color:#1a1a1a;line-height:1.5}}
-  .header{{background:#fff;border-bottom:3px solid #185FA5;padding:20px 24px;position:sticky;top:0;z-index:10}}
-  .header h1{{font-size:20px;color:#185FA5;font-weight:600}}
-  .header p{{font-size:13px;color:#999;margin-top:2px}}
-  .stats{{display:flex;gap:12px;padding:16px 24px;background:#fff;border-bottom:1px solid #eee;flex-wrap:wrap}}
-  .stat{{background:#f5f5f5;border-radius:8px;padding:10px 16px;min-width:90px}}
-  .stat-label{{font-size:11px;color:#999;text-transform:uppercase;letter-spacing:.04em}}
-  .stat-value{{font-size:22px;font-weight:600;color:#1a1a1a}}
-  .content{{max-width:760px;margin:0 auto;padding:24px 16px}}
-  .section-title{{font-size:13px;font-weight:700;margin:24px 0 10px;text-transform:uppercase;letter-spacing:.05em}}
-  .card{{background:#fff;border:1px solid #e5e5e5;border-radius:10px;padding:18px;margin-bottom:12px}}
-  .card h3{{font-size:15px;font-weight:600;margin:10px 0 12px;line-height:1.4}}
-  .card-meta{{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:4px}}
-  .badge{{font-size:11px;font-weight:700;padding:3px 9px;border-radius:5px;text-transform:uppercase;letter-spacing:.03em}}
-  .badge-type{{background:#f0f0f0;color:#555}}
-  .details{{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:12px}}
-  .details td{{padding:4px 0;vertical-align:top}}
-  .details td:first-child{{color:#999;font-size:12px;width:80px;padding-right:8px}}
-  .desc{{font-size:13px;color:#666;margin-bottom:14px;line-height:1.5}}
-  .btn{{display:inline-block;background:#185FA5;color:#fff;padding:8px 18px;border-radius:6px;font-size:13px;font-weight:600;text-decoration:none}}
-  .btn:hover{{background:#0C447C}}
-  .no-match{{color:#999;font-size:14px;margin:40px 0;text-align:center}}
-  .skip-section{{margin-top:24px;border:1px solid #eee;border-radius:8px;overflow:hidden}}
-  .skip-section summary{{padding:12px 16px;font-size:13px;color:#aaa;cursor:pointer;background:#fafafa}}
-  .skip-table{{width:100%;border-collapse:collapse;font-size:12px}}
-  .skip-table th{{padding:8px 12px;text-align:left;background:#f5f5f5;color:#aaa;font-size:11px;text-transform:uppercase}}
-  .skip-table td{{padding:7px 12px;border-top:1px solid #f0f0f0;color:#666}}
-  .footer{{text-align:center;font-size:11px;color:#ccc;padding:24px}}
-  @media(max-width:600px){{.stats{{gap:8px}}.content{{padding:16px 12px}}}}
-</style>
-</head>
-<body>
-<div class="header">
-  <h1>Simpled Tender Bot</h1>
-  <p>{count} match{'es' if count != 1 else ''} from {len(all_results)} scanned &middot; {date_str} at {time_str}</p>
-</div>
+*{{box-sizing:border-box;margin:0;padding:0}}
+body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f5;color:#1a1a1a;line-height:1.5}}
+.hdr{{background:#fff;border-bottom:3px solid #185FA5;padding:18px 24px;position:sticky;top:0;z-index:9}}
+.hdr h1{{font-size:19px;color:#185FA5;font-weight:600}}.hdr p{{font-size:12px;color:#999;margin-top:2px}}
+.stats{{display:flex;gap:10px;padding:14px 24px;background:#fff;border-bottom:1px solid #eee;flex-wrap:wrap}}
+.stat{{background:#f5f5f5;border-radius:8px;padding:10px 16px;min-width:85px}}
+.stat-l{{font-size:11px;color:#999;text-transform:uppercase;letter-spacing:.04em}}
+.stat-v{{font-size:22px;font-weight:600}}
+.content{{max-width:740px;margin:0 auto;padding:20px 16px}}
+.sh{{font-size:12px;font-weight:700;margin:22px 0 8px;text-transform:uppercase;letter-spacing:.05em}}
+.card{{background:#fff;border:1px solid #e5e5e5;border-radius:10px;padding:16px;margin-bottom:10px}}
+.card h3{{font-size:14px;font-weight:600;margin:8px 0 10px;line-height:1.4}}
+.meta{{display:flex;gap:6px;flex-wrap:wrap}}
+.badge{{font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;text-transform:uppercase;letter-spacing:.03em}}
+.b2{{background:#f0f0f0;color:#555}}
+table{{width:100%;border-collapse:collapse;font-size:12px;margin:10px 0}}
+td{{padding:3px 0;vertical-align:top}}td:first-child{{color:#999;width:75px;padding-right:8px}}
+.desc{{font-size:12px;color:#666;margin:8px 0 12px;line-height:1.5}}
+.btn{{display:inline-block;background:#185FA5;color:#fff;padding:7px 16px;border-radius:5px;font-size:12px;font-weight:600;text-decoration:none}}
+.btn:hover{{background:#0c447c}}
+.none{{color:#999;font-size:13px;text-align:center;margin:40px 0}}
+.ftr{{text-align:center;font-size:11px;color:#ccc;padding:20px}}
+@media(max-width:560px){{.stats{{gap:8px}}.content{{padding:14px 10px}}}}
+</style></head><body>
+<div class="hdr"><h1>Simpled Tender Bot</h1>
+<p>{count} match{'es' if count!=1 else ''} from {total_scanned} scanned &middot; {date_str} at {time_str}</p></div>
 <div class="stats">
-  <div class="stat"><div class="stat-label">Scanned</div><div class="stat-value">{len(all_results)}</div></div>
-  <div class="stat"><div class="stat-label">Matches</div><div class="stat-value">{count}</div></div>
-  <div class="stat"><div class="stat-label">High</div><div class="stat-value" style="color:#3B6D11">{len([m for m in matches if m.get('priority')=='high'])}</div></div>
-  <div class="stat"><div class="stat-label">Medium</div><div class="stat-value" style="color:#854F0B">{len([m for m in matches if m.get('priority')=='medium'])}</div></div>
+<div class="stat"><div class="stat-l">Scanned</div><div class="stat-v">{total_scanned}</div></div>
+<div class="stat"><div class="stat-l">Matches</div><div class="stat-v">{count}</div></div>
+<div class="stat"><div class="stat-l">High</div><div class="stat-v" style="color:#3B6D11">{len([m for m in matches if m.get('priority')=='high'])}</div></div>
+<div class="stat"><div class="stat-l">Medium</div><div class="stat-v" style="color:#854F0B">{len([m for m in matches if m.get('priority')=='medium'])}</div></div>
 </div>
 <div class="content">
-  {no_match_msg}
-  {cards_html}
-  {skip_section}
+{'<p class="none">No matches today. Check back tomorrow.</p>' if not matches else sections}
 </div>
-<div class="footer">Automated daily scan &middot; Simpled Services Ltd &middot; contractsfinder.service.gov.uk &middot; find-tender.service.gov.uk</div>
-</body>
-</html>"""
+<div class="ftr">Daily scan &middot; Simpled Services Ltd &middot; contractsfinder.service.gov.uk</div>
+</body></html>"""
+
+# ─── MAIN ─────────────────────────────────────────────────────────────────────
 
 def main():
     anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
@@ -319,31 +251,32 @@ def main():
     print(f"Simpled Tender Bot — {datetime.now().strftime('%d %b %Y %H:%M')}")
     print(f"{'='*50}\n")
 
-    results = search_tenders(claude_client, days_back)
-    if not results:
-        results = []
+    releases = fetch_notices(days_back)
+    notices = [extract(r) for r in releases]
 
-    before_filter = len(results)
-    results = [r for r in results if is_future_deadline(r.get("deadline", ""))]
-    removed = before_filter - len(results)
-    if removed:
-        print(f"Removed {removed} expired tenders")
+    # Analyse in batches of 20
+    BATCH = 20
+    all_results = []
+    for i in range(0, len(notices), BATCH):
+        batch = notices[i:i+BATCH]
+        print(f"Analysing batch {i//BATCH+1} ({len(batch)} tenders)...")
+        results = analyse_batch(batch, claude_client)
+        for r in results:
+            idx = r.get("index", 0)
+            if 0 <= idx < len(batch) and r.get("isMatch"):
+                all_results.append({**r, "notice": batch[idx]})
 
-    matches = [r for r in results if r.get("isMatch")]
-    for m in matches:
-        m["priority"] = priority_for(m)
-    matches.sort(key=lambda m: {"high":0,"medium":1,"low":2}.get(m.get("priority","low"),1))
+    all_results.sort(key=lambda m: {"high":0,"medium":1,"low":2}.get(m.get("priority","low"),1))
 
     print(f"\n{'─'*50}")
-    print(f"{len(matches)} matches from {len(results)} tenders scanned")
-    for m in matches:
-        print(f"  [{m.get('priority','?').upper()}] {m.get('title','')[:55]}")
+    print(f"{len(all_results)} matches from {len(notices)} tenders")
+    for m in all_results:
+        print(f"  [{m.get('priority','?').upper()}] {m['notice']['title'][:55]}")
     print(f"{'─'*50}\n")
 
     os.makedirs("docs", exist_ok=True)
-    html = build_html(matches, results, removed_count=removed)
     with open("docs/index.html", "w", encoding="utf-8") as f:
-        f.write(html)
+        f.write(build_html(all_results, len(notices)))
     print("Dashboard written to docs/index.html")
 
 if __name__ == "__main__":
