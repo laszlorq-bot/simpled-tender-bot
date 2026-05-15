@@ -4,48 +4,42 @@
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f5;color:#1a1a1a;line-height:1.5}
-.hdr{background:#fff;border-bottom:3px solid #185FA5;padding:18px 24px;position:sticky;top:0;z-index:9}
-.hdr h1{font-size:19px;color:#185FA5;font-weight:600}.hdr p{font-size:12px;color:#999;margin-top:2px}
+.hdr{background:#fff;border-bottom:3px solid #185FA5;padding:18px 24px;position:sticky;top:0;z-index:9;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.hdr h1{font-size:18px;color:#185FA5;font-weight:700}.hdr p{font-size:12px;color:#999;margin-top:2px}
 .stats{display:flex;gap:10px;padding:14px 24px;background:#fff;border-bottom:1px solid #eee;flex-wrap:wrap}
-.stat{background:#f5f5f5;border-radius:8px;padding:10px 16px;min-width:85px}
-.stat-l{font-size:11px;color:#999;text-transform:uppercase;letter-spacing:.04em}
-.stat-v{font-size:22px;font-weight:600}
+.stat{background:#f5f5f5;border-radius:8px;padding:10px 16px;min-width:80px}
+.sl{font-size:10px;color:#999;text-transform:uppercase;letter-spacing:.04em}
+.sv{font-size:22px;font-weight:700}
 .content{max-width:740px;margin:0 auto;padding:20px 16px}
-.sh{font-size:12px;font-weight:700;margin:22px 0 8px;text-transform:uppercase;letter-spacing:.05em}
-.card{background:#fff;border:1px solid #e5e5e5;border-radius:10px;padding:16px;margin-bottom:10px}
+.sh{font-size:11px;font-weight:700;margin:24px 0 8px;text-transform:uppercase;letter-spacing:.06em}
+.card{background:#fff;border:1px solid #e5e5e5;border-radius:10px;padding:16px;margin-bottom:10px;transition:box-shadow .15s}
+.card:hover{box-shadow:0 2px 12px rgba(0,0,0,.08)}
 .card h3{font-size:14px;font-weight:600;margin:8px 0 10px;line-height:1.4}
-.meta{display:flex;gap:6px;flex-wrap:wrap}
-.badge{font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;text-transform:uppercase;letter-spacing:.03em}
-.b2{background:#f0f0f0;color:#555}
+.meta{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+.badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;text-transform:uppercase;letter-spacing:.03em;white-space:nowrap}
+.b2{background:#f0f0f0;color:#666}
 table{width:100%;border-collapse:collapse;font-size:12px;margin:10px 0}
-td{padding:3px 0;vertical-align:top}td:first-child{color:#999;width:75px;padding-right:8px}
+td{padding:3px 0;vertical-align:top}
+td:first-child{color:#999;width:70px;padding-right:8px;white-space:nowrap}
 .desc{font-size:12px;color:#666;margin:8px 0 12px;line-height:1.5}
-.btn{display:inline-block;background:#185FA5;color:#fff;padding:7px 16px;border-radius:5px;font-size:12px;font-weight:600;text-decoration:none}
+.btn{display:inline-block;background:#185FA5;color:#fff !important;padding:7px 16px;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;cursor:pointer}
 .btn:hover{background:#0c447c}
-.none{color:#999;font-size:13px;text-align:center;margin:40px 0}
-.ftr{text-align:center;font-size:11px;color:#ccc;padding:20px}
-@media(max-width:560px){.stats{gap:8px}.content{padding:14px 10px}}
+.none{color:#999;font-size:13px;text-align:center;margin:40px 0;padding:40px}
+.ftr{text-align:center;font-size:11px;color:#ccc;padding:24px}
+@media(max-width:560px){.stats{gap:8px}.content{padding:12px 10px}}
 </style></head><body>
-<div class="hdr"><h1>Simpled Tender Bot</h1>
-<p>1 match from 4 scanned &middot; 15 May 2026 at 13:15 UTC</p></div>
+<div class="hdr">
+  <h1>&#128270; Simpled Tender Bot</h1>
+  <p>0 active matches &middot; Updated 15 May 2026 at 13:36 UTC</p>
+</div>
 <div class="stats">
-<div class="stat"><div class="stat-l">Scanned</div><div class="stat-v">4</div></div>
-<div class="stat"><div class="stat-l">Matches</div><div class="stat-v">1</div></div>
-<div class="stat"><div class="stat-l">High</div><div class="stat-v" style="color:#3B6D11">1</div></div>
-<div class="stat"><div class="stat-l">Medium</div><div class="stat-v" style="color:#854F0B">0</div></div>
+  <div class="stat"><div class="sl">Active</div><div class="sv">0</div></div>
+  <div class="stat"><div class="sl">High</div><div class="sv" style="color:#3B6D11">0</div></div>
+  <div class="stat"><div class="sl">Medium</div><div class="sv" style="color:#854F0B">0</div></div>
+  <div class="stat"><div class="sl">Low</div><div class="sv" style="color:#185FA5">0</div></div>
 </div>
 <div class="content">
-<h2 class="sh" style="color:#3B6D11">High priority (1)</h2><div class="card" style="border-left:4px solid #1D9E75">
-  <div class="meta"><span class="badge" style="background:#EAF3DE;color:#3B6D11">HIGH</span><span class="badge b2">Live Tender</span></div>
-  <h3>MCC - Refurbishment</h3>
-  <table><tr><td>Buyer</td><td><b>Central Swindon North Parish Council</b></td></tr>
-  <tr><td>Location</td><td>Not specified</td></tr>
-  <tr><td>Value</td><td>£115,000</td></tr>
-  <tr><td>Deadline</td><td>2026-06-18</td></tr>
-  <tr><td>Why</td><td style="color:#3B6D11;font-style:italic">Internal refurbishment with electrical works - strong match</td></tr></table>
-  <p class="desc">The works include internal strip-out, removal of the existing stage, new suspended ceiling to the main hall, new foyer ceiling, electrical and LED lighting works, review of the existing distribution b</p>
-  <a class="btn" href="https://www.contractsfinder.service.gov.uk/Notice/8dc098de-9a50-45d2-b393-924ef69d1926" target="_blank">View tender &rarr;</a>
+<div class="none">No active matches right now. Check back tomorrow.</div>
 </div>
-</div>
-<div class="ftr">Daily scan &middot; Simpled Services Ltd &middot; contractsfinder.service.gov.uk</div>
+<div class="ftr">Runs daily &middot; Simpled Services Ltd &middot; contractsfinder.service.gov.uk</div>
 </body></html>
