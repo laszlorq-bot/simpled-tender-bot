@@ -71,11 +71,11 @@ def merge_tenders(existing, new_batch):
     Merge new tenders into existing history.
     Use link as unique key. Keep expired ones out.
     """
-    existing_by_link = {t["link"]: t for t in existing}
+    existing_by_link = {t.get("notice", t).get("link", t.get("link","")): t for t in existing}
 
     added = 0
     for t in new_batch:
-        link = t.get("link", "")
+        link = t.get("notice", {}).get("link", t.get("link", ""))
         if link and link not in existing_by_link:
             existing_by_link[link] = t
             added += 1
@@ -83,7 +83,7 @@ def merge_tenders(existing, new_batch):
     # Remove expired
     before = len(existing_by_link)
     active = {k: v for k, v in existing_by_link.items()
-              if not is_expired(v.get("deadline", ""))}
+              if not is_expired(v.get("notice", v).get("deadline", v.get("deadline", "")))}
     expired = before - len(active)
 
     print(f"Added {added} new, removed {expired} expired, kept {len(active)} active")
